@@ -1,11 +1,7 @@
 import cv2 as cv
 import numpy as np
 
-uint = np.uint8
-
-BACKGROUND = uint(0)
-EDGE = uint(1)
-VERTEX = uint(2)
+from graphify import uint, BACKGROUND, EDGE, VERTEX
 
 
 class Marker:
@@ -46,7 +42,7 @@ class Marker:
                      [0, 0, 0]], dtype=uint)
     _EXC_VERT_VAL = uint(6)
 
-    def mark(self, img):
+    def mark(self, img, draw=False):
         c1 = cv.filter2D(img, -1, self._K1)
         c1 = np.where(c1 <= self._NULL_THRSH, self._NULL, c1)
         c1 = np.where(c1 == self._MAYB_VAL, self._MAYB, c1)
@@ -58,6 +54,11 @@ class Marker:
 
         mapped = self._map(c1 + c2).astype(uint)
         compressed = self._compress_vertices(mapped).astype(uint)
+
+        if draw:
+            (h, w), ratio = compressed.shape, 6
+            cv.imshow('Marked', cv.resize(120 * compressed, (ratio * w, ratio * h), interpolation=cv.INTER_NEAREST))
+
         return compressed
 
     @staticmethod

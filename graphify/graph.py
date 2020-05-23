@@ -3,16 +3,16 @@ import numpy as np
 from skimage.morphology import skeletonize
 
 from data.loader import DataLoader
-from graphify.marker import Marker, uint
+from graphify import uint
+from graphify.builder import Builder
+from graphify.marker import Marker
 
 
 class Graph:
     def __init__(self, img):
-        img = self._simplify(img)
-        marked = Marker().mark(img)
-        cv.imshow('', cv.resize(120 * marked, (1300, 1000), interpolation=cv.INTER_NEAREST))
-        cv.waitKey()
-        cv.destroyAllWindows()
+        simplified = self._simplify(img)
+        marked = Marker().mark(simplified, True)
+        self._V, self._E = Builder.build(marked, True)
 
     @staticmethod
     def _simplify(img):
@@ -24,3 +24,5 @@ class Graph:
 if __name__ == '__main__':
     for img in DataLoader().get_data():
         g = Graph(img)
+        cv.waitKey()
+        cv.destroyAllWindows()
