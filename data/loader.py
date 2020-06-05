@@ -41,14 +41,15 @@ class DataLoader:
             if not path.exists(self._raw_ith(i)): continue
             img = cv.imread(self._raw_ith(i), cv.IMREAD_GRAYSCALE)
             assert img is not None
-            img = cv.resize(img, (100, 100))
+            # img = cv.resize(img, (100, 100))
             cv.imwrite(self._ready_ith(i), img)
             self._log_progress('Preprocessing', (idx + 1) / len(rng))
         self._end_logging()
 
     def get_data(self, rng=DEFAULT_RANGE):
         for i in rng:
-            yield cv.imread(self._ready_ith(i), cv.IMREAD_GRAYSCALE)
+            img = cv.imread(self._ready_ith(i), cv.IMREAD_GRAYSCALE)
+            if img is not None: yield img
 
     @staticmethod
     def _raw_ith(i): return f'{RAW_DATA_DIR}/{i:04d}.png'
