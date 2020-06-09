@@ -5,7 +5,6 @@ from scipy.sparse.csgraph import johnson, connected_components
 from scipy.sparse.csgraph import minimum_spanning_tree
 from skimage.morphology import skeletonize
 
-from data.loader import DataLoader
 from graphify import uint
 from graphify.builder import Builder
 from graphify.marker import Marker
@@ -18,7 +17,6 @@ class Graph:
         marked = Marker().mark(simplified, False)
         self._V, self._E = Builder.build(marked, False)
         self._compute()
-        print(self.get_stats())
 
     def get_stats(self):
         return GraphStats(self._n, self._m, self._weight_sum, self._leaves, self._min_degree, self._max_degree,
@@ -79,9 +77,4 @@ class Graph:
         skeleton = skeletonize(img > 0)
         return np.where(skeleton, 1, 0).astype(uint)
 
-
-if __name__ == '__main__':
-    for img in DataLoader().get_data():
-        g = Graph(img)
-        cv.waitKey()
-        cv.destroyAllWindows()
+# TODO: erase small noise (skimage.morphology.remove_small_objects)
