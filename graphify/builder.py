@@ -60,9 +60,12 @@ class Builder:
 
     @staticmethod
     def _fill_hyper_edges(V, HE, vertices, e_labels):
+        h, w = e_labels.shape
+        clip_h = lambda v: 0 if v < 0 else min(v, h - 1)
+        clip_w = lambda v: 0 if v < 0 else min(v, w - 1)
         for v, (vx, vy) in zip(V, vertices):
             for dx, dy in [(-1, -1), (-1, 0), (-1, 1), (0, -1), (1, -1), (0, 1), (1, 0), (1, 1)]:
-                eid = e_labels[vx + dx, vy + dy]
+                eid = e_labels[clip_h(vx + dx), clip_w(vy + dy)]
                 if eid != 0: HE[eid].add_vertex(v)
 
     @staticmethod
