@@ -54,7 +54,7 @@ class DataLoader:
         for file in os.listdir(READY_DATA_DIR):
             pth = os.path.join(READY_DATA_DIR, file)
             img = cv.imread(pth, cv.IMREAD_GRAYSCALE)
-            if img is not None: yield img
+            if img is not None: yield file[:file.find('_')], img
 
     @staticmethod
     def _prepare_dir(dirname):
