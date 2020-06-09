@@ -6,8 +6,7 @@ import cv2 as cv
 import numpy as np
 from scipy import ndimage
 
-from augmentation import uint
-from data.loader import DataLoader
+from data import uint
 
 
 class Augmentor:
@@ -87,12 +86,3 @@ class Augmentor:
 
     def _light(self, img):
         return (np.random.uniform(*self._light_rng) * img).astype(uint)
-
-
-if __name__ == '__main__':
-    for img in DataLoader().get_data():
-        (h, w), ratio = img.shape, 4
-        for i, a in enumerate(Augmentor().augment(img, 3)):
-            cv.imshow(f'v{i}', cv.resize(a, (ratio * w, ratio * h), interpolation=cv.INTER_NEAREST))
-        cv.waitKey()
-        cv.destroyAllWindows()

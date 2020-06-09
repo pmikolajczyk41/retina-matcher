@@ -1,21 +1,24 @@
 import os
 import shutil
-from os import path
-
-import cv2 as cv
 import urllib.request
+from os import path
 from urllib.error import HTTPError
 
+import cv2 as cv
 from PIL import Image
+
+from data.augmentor import Augmentor
 
 URL = 'http://cecas.clemson.edu/~ahoover/stare/icon-images/vessels-images'
 RAW_DATA_DIR = '../resources/vessels/raw'
 READY_DATA_DIR = '../resources/vessels/ready'
 DEFAULT_RANGE = range(1, 403)
+COPIES = 3
 
 
 class DataLoader:
     def fetch_raw_data(self, rng=DEFAULT_RANGE):
+        self._prepare_dir(RAW_DATA_DIR)
         temp = 'temp.gif'
         for idx, i in enumerate(rng):
             try:
@@ -35,27 +38,31 @@ class DataLoader:
         self._end_logging()
 
     def preprocess(self, rng=DEFAULT_RANGE):
-        shutil.rmtree(READY_DATA_DIR)
-        os.mkdir(READY_DATA_DIR)
+        self._prepare_dir(READY_DATA_DIR)
+        aug = Augmentor()
         for idx, i in enumerate(rng):
             if not path.exists(self._raw_ith(i)): continue
             img = cv.imread(self._raw_ith(i), cv.IMREAD_GRAYSCALE)
             assert img is not None
-            # img = cv.resize(img, (100, 100))
-            cv.imwrite(self._ready_ith(i), img)
+            for id, copy in enumerate(aug.augment(img, COPIES)):
+                cv.imwrite(f'{READY_DATA_DIR}/{i:04d}_{id}.png', copy)
             self._log_progress('Preprocessing', (idx + 1) / len(rng))
         self._end_logging()
 
-    def get_data(self, rng=DEFAULT_RANGE):
-        for i in rng:
-            img = cv.imread(self._ready_ith(i), cv.IMREAD_GRAYSCALE)
+    @staticmethod
+    def get_data():
+        for file in os.listdir(READY_DATA_DIR):
+            pth = os.path.join(READY_DATA_DIR, file)
+            img = cv.imread(pth, cv.IMREAD_GRAYSCALE)
             if img is not None: yield img
 
     @staticmethod
-    def _raw_ith(i): return f'{RAW_DATA_DIR}/{i:04d}.png'
+    def _prepare_dir(dirname):
+        shutil.rmtree(dirname, ignore_errors=True)
+        os.mkdir(dirname)
 
     @staticmethod
-    def _ready_ith(i): return f'{READY_DATA_DIR}/{i:04d}.png'
+    def _raw_ith(i): return f'{RAW_DATA_DIR}/{i:04d}.png'
 
     @staticmethod
     def _log_progress(title, fraction): print(f'\r{title}... [{100 * fraction:.2f}%]', end='')
