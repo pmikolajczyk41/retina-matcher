@@ -1,8 +1,5 @@
-import random
 from collections import defaultdict
-
-import numpy as np
-from numpy.random import choice
+from random import sample, random
 
 from data.loader import DataLoader
 
@@ -14,28 +11,23 @@ class Provider:
         classified = defaultdict(list)
         for key, img in data:
             classified[key].append(img)
-        y, X = zip(*classified.items())
-        self._y, self._X = np.array(y)[:, None], np.array(X)
-        self._n = len(y)
+        self._y, self._X = zip(*classified.items())
+        self._n = len(self._y)
 
     def get_same_sample(self):
-        y = choice(self._n)
-        xs = choice(len(self._X[y]), 2, replace=False)
-        return self._X[y, xs]
+        x = sample(self._X, k=1)[0]
+        return sample(x, k=2)
 
     def get_diff_sample(self):
-        ys = choice(self._n, 2, replace=False)
-        x1, x2 = self._X[ys]
-        return np.array([x1[choice(len(x1))],
-                         x2[choice(len(x2))]])
+        xs = sample(self._X, k=2)
+        return [sample(x, k=1)[0] for x in xs]
 
-    def get_batch(self, nsamples, ratio):
-        same = [(self.get_same_sample(), SAME) for _ in range(int(ratio * nsamples) + 1)]
-        diff = [(self.get_diff_sample(), DIFF) for _ in range(int((1. - ratio) * nsamples + 1))]
-        data = (same + diff)[:nsamples]
-        random.shuffle(data)
-        batch, labels = zip(*data)
-        return np.array(batch), np.array(labels)
+    def provide(self, ratio=.5):
+        while True:
+            if random() <= ratio:
+                yield self.get_diff_sample(), DIFF
+            else:
+                yield self.get_same_sample(), SAME
 
 
 class ImageProvider(Provider):
@@ -50,11 +42,10 @@ class GraphStatsProvider(Provider):
 
 if __name__ == '__main__':
     p = ImageProvider()
-    batch, labels = p.get_batch(8, 0.2)
 
     import cv2 as cv
 
-    for (r1, r2), lbl in zip(batch, labels):
+    for _, ((r1, r2), lbl) in zip(range(6), p.provide(.5)):
         (h, w), ratio = r1.shape, 6
         cv.imshow('retina', cv.resize(r1, (ratio * w, ratio * h), interpolation=cv.INTER_NEAREST))
         second = 'same' if lbl == SAME else 'diff'
@@ -63,8 +54,7 @@ if __name__ == '__main__':
         cv.destroyAllWindows()
 
     p = GraphStatsProvider()
-    batch, labels = p.get_batch(8, 0.2)
-    for (r1, r2), lbl in zip(batch, labels):
+    for _, ((r1, r2), lbl) in zip(range(6), p.provide(.5)):
         print(r1)
         print(r2)
         print(lbl)
