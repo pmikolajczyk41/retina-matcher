@@ -1,8 +1,10 @@
 import json
 import os
+import pathlib
+import random
 import shutil
 import urllib.request
-from os import path
+from os.path import join
 from urllib.error import HTTPError
 
 import cv2 as cv
@@ -16,12 +18,21 @@ from graphify.stats import GraphStats
 URL = 'http://cecas.clemson.edu/~ahoover/stare/icon-images/vessels-images'
 RAW_DATA_DIR = '../resources/vessels/raw'
 READY_DATA_DIR = '../resources/vessels/ready'
-GRAPHIFIED_DATA_DIR = '../resources/vessels/graphified'
 DEFAULT_RANGE = range(1, 403)
 COPIES = 3
+TEST_SIZE = 40
+EXCL_RNG = [10, 35, 72, 79, 86, 96, 126, 127, 130, 131, 132, 147, 152, 171, 176, 203, 242, 261, 276, 305, 306, 310,
+            311, 312, 313, 314, 315, 316, 345, 346, 350, 352, 356, 367, 387, ]
 
 
 class DataLoader:
+    def load_data(self):
+        self.fetch_raw_data()
+        self.sieve_raw_data(EXCL_RNG)
+        self.split(TEST_SIZE)
+        self.augment()
+        self.convert_to_graph_stats()
+
     def fetch_raw_data(self, rng=DEFAULT_RANGE):
         self._prepare_dir(RAW_DATA_DIR)
         temp = 'temp.gif'
@@ -42,46 +53,78 @@ class DataLoader:
             self._log_progress('Sieving', (idx + 1) / len(excl_rng))
         self._end_logging()
 
-    def augment(self, rng=DEFAULT_RANGE):
-        self._prepare_dir(READY_DATA_DIR)
+    def split(self, test_size):
+        self._prepare_dir(f'{READY_DATA_DIR}/imgs/registered')
+        self._prepare_dir(f'{READY_DATA_DIR}/imgs/unregistered')
+
+        imgs = set(os.listdir(RAW_DATA_DIR))
+        unreg_imgs = set(random.sample(imgs, test_size))
+        reg_imgs = imgs - unreg_imgs
+
+        for idx, unreg_img in enumerate(unreg_imgs):
+            shutil.copyfile(join(RAW_DATA_DIR, unreg_img), join(f'{READY_DATA_DIR}/imgs/unregistered', unreg_img))
+            self._log_progress('Splitting', (idx + 1) / len(imgs))
+
+        for idx, unreg_img in enumerate(reg_imgs):
+            shutil.copyfile(join(RAW_DATA_DIR, unreg_img), join(f'{READY_DATA_DIR}/imgs/registered', unreg_img))
+            self._log_progress('Splitting', (idx + 1 + len(unreg_imgs)) / len(imgs))
+
+        self._end_logging()
+
+    def augment(self):
         aug = Augmentor()
-        for idx, i in enumerate(rng):
-            if not path.exists(self._raw_ith(i)): continue
-            img = cv.imread(self._raw_ith(i), cv.IMREAD_GRAYSCALE)
+        pth = f'{READY_DATA_DIR}/imgs/registered'
+        reg_imgs = os.listdir(pth)
+        for idx, img_file in enumerate(reg_imgs):
+            img = cv.imread(join(pth, img_file), cv.IMREAD_GRAYSCALE)
             assert img is not None
+
+            img_name = img_file[:img_file.find('.png')]
             for id, copy in enumerate(aug.augment(img, COPIES)):
-                cv.imwrite(f'{READY_DATA_DIR}/{i:04d}_{id}.png', copy)
-            self._log_progress('Preprocessing', (idx + 1) / len(rng))
+                cv.imwrite(join(pth, f'{img_name}_{id}.png'), copy)
+            os.remove(join(pth, img_file))
+
+            self._log_progress('Augmenting', (idx + 1) / len(reg_imgs))
         self._end_logging()
 
     def convert_to_graph_stats(self):
-        def cvt(obj):
+        pth = f'{READY_DATA_DIR}/gstats'
+        self._prepare_dir(f'{pth}/registered')
+        self._prepare_dir(f'{pth}/unregistered')
+
+        self._convert_to_graph_stats_single_set(pth, 'registered')
+        self._convert_to_graph_stats_single_set(pth, 'unregistered')
+
+    def _convert_to_graph_stats_single_set(self, gstats_dir, suffix):
+        def int_cvt(obj):
             if isinstance(obj, np.integer): return int(obj)
             elif isinstance(obj, np.floating): return float(obj)
             else: raise TypeError
 
-        self._prepare_dir(GRAPHIFIED_DATA_DIR)
-        files = os.listdir(READY_DATA_DIR)
-        for idx, file in enumerate(files):
-            pth = os.path.join(READY_DATA_DIR, file)
-            img = cv.imread(pth, cv.IMREAD_GRAYSCALE)
+        img_dir = f'{READY_DATA_DIR}/imgs'
+        imgs = os.listdir(join(img_dir, suffix))
+        for idx, img_file in enumerate(imgs):
+            img = cv.imread(join(img_dir, suffix, img_file), cv.IMREAD_GRAYSCALE)
             gs = Graph(img).get_stats()
-            with open(f'{GRAPHIFIED_DATA_DIR}/{file[:file.find(".png")]}.gstats', 'w') as output:
-                json.dump(gs._asdict(), output, default=cvt)
-            self._log_progress('Graphifing', (idx + 1) / len(files))
+            img_name = img_file[:img_file.find(".png")]
+            with open(join(gstats_dir, suffix, f'{img_name}.json'), 'w') as output:
+                json.dump(gs._asdict(), output, default=int_cvt)
+            self._log_progress(f'Graphifing {suffix} set', (idx + 1) / len(imgs))
         self._end_logging()
 
     @staticmethod
-    def get_img_data():
-        for file in os.listdir(READY_DATA_DIR):
-            pth = os.path.join(READY_DATA_DIR, file)
+    def get_img_data(dataset='registered'):
+        base_dir = f'{READY_DATA_DIR}/imgs/{dataset}'
+        for file in os.listdir(base_dir):
+            pth = os.path.join(base_dir, file)
             img = cv.imread(pth, cv.IMREAD_GRAYSCALE)
             if img is not None: yield file[:file.find('_')], img
 
     @staticmethod
-    def get_graph_data():
-        for file in os.listdir(GRAPHIFIED_DATA_DIR):
-            pth = os.path.join(GRAPHIFIED_DATA_DIR, file)
+    def get_graph_data(dataset='registered'):
+        base_dir = f'{READY_DATA_DIR}/gstats/{dataset}'
+        for file in os.listdir(base_dir):
+            pth = os.path.join(base_dir, file)
             with open(pth, 'r') as input:
                 stats = json.load(input, object_hook=lambda d: GraphStats(**d))
             if stats is not None: yield file[:file.find('_')], stats
@@ -89,7 +132,7 @@ class DataLoader:
     @staticmethod
     def _prepare_dir(dirname):
         shutil.rmtree(dirname, ignore_errors=True)
-        os.mkdir(dirname)
+        pathlib.Path(dirname).mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _raw_ith(i): return f'{RAW_DATA_DIR}/{i:04d}.png'
@@ -102,9 +145,5 @@ class DataLoader:
 
 
 if __name__ == '__main__':
-    DataLoader().fetch_raw_data()
-    DataLoader().sieve_raw_data(
-            [10, 35, 72, 79, 86, 96, 126, 127, 130, 131, 132, 147, 152, 171, 176, 203, 242, 261, 276, 305, 306, 310,
-             311, 312, 313, 314, 315, 316, 345, 346, 350, 352, 356, 367, 387, ])
-    DataLoader().augment()
-    DataLoader().convert_to_graph_stats()
+    dl = DataLoader()
+    dl.load_data()
