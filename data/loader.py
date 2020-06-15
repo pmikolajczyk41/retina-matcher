@@ -135,7 +135,8 @@ class DataLoader:
         for file in os.listdir(base_dir):
             pth = os.path.join(base_dir, file)
             img = cv.imread(pth, cv.IMREAD_GRAYSCALE)
-            if img is not None: yield file[:file.find('_')], img
+            filename = file[:file.find('_')] if file.count('_') else file[:file.find('.')]
+            if img is not None: yield filename, img
 
     @staticmethod
     def get_graph_data(dataset='registered'):
@@ -144,7 +145,8 @@ class DataLoader:
             pth = os.path.join(base_dir, file)
             with open(pth, 'r') as input:
                 stats = json.load(input, object_hook=lambda d: GraphStats(**d))
-            if stats is not None: yield file[:file.find('_')], stats
+            filename = file[:file.find('_')] if file.count('_') else file[:file.find('.')]
+            if stats is not None: yield filename, stats
 
     @staticmethod
     def _prepare_dir(dirname):

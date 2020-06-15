@@ -9,12 +9,14 @@ from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.optimizers import Adam
 
 from data.providers import GraphStatsProvider
+from models.net import Net
 
 IMG_SHAPE = (14, 1)
 
 
-class GraphNet:
+class GraphNet(Net):
     def __init__(self):
+        super().__init__()
         left_input, right_input = Input(IMG_SHAPE), Input(IMG_SHAPE)
 
         model = Sequential()
@@ -52,6 +54,13 @@ class GraphNet:
         y_pred = self.net.predict([X_test[0][..., np.newaxis], X_test[1][..., np.newaxis]])
         m.update_state(y_test, y_pred)
         print(m.result())
+
+    def load(self):
+        self.net.load_weights('graphnet')
+
+    def prepare(self):
+        try: self.load()
+        except: self.train()
 
 
 if __name__ == '__main__':
