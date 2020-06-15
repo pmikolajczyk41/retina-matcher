@@ -15,3 +15,4 @@ class GraphStats(NamedTuple):
     unweighted_diameter: int
     cc: int
     msf: float
+    treewidth: int
