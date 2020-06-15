@@ -10,7 +10,7 @@ from tensorflow.keras.optimizers import Adam
 
 from data.providers import GraphStatsProvider
 
-IMG_SHAPE = (13, 1)
+IMG_SHAPE = (14, 1)
 
 
 class GraphNet:

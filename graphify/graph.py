@@ -1,5 +1,7 @@
 import cv2 as cv
+import networkx as nx
 import numpy as np
+from networkx.algorithms.approximation.treewidth import treewidth_decomp
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import johnson, connected_components
 from scipy.sparse.csgraph import minimum_spanning_tree
@@ -21,16 +23,20 @@ class Graph:
     def get_stats(self):
         return GraphStats(self._n, self._m, self._weight_sum, self._leaves, self._min_degree, self._max_degree,
                           self._avg_degree, self._med_degree, self._std_degree, self._diameter,
-                          self._unweighted_diameter, self._cc, self._msf)
+                          self._unweighted_diameter, self._cc, self._msf, self._treewidth)
 
     def _compute(self):
         self._compute_basics()
         self._compute_leaves()
         self._compute_degrees()
+
         m = self._get_adj_matrix()
         self._compute_diameters(m)
         self._compute_cc(m)
         self._compute_msf(m)
+
+        g = self._get_nx_graph()
+        self.compute_advanced(g)
 
     def _compute_basics(self):
         self._n = len(self._V)
@@ -71,10 +77,27 @@ class Graph:
         msf = minimum_spanning_tree(csr_matrix(adj_matrix))
         self._msf = np.sum(msf)
 
+    def _get_nx_graph(self):
+        g = nx.Graph()
+        for e in self._E:
+            u, v = e.get_vertices()
+            g.add_edge(u.get_id(), v.get_id(), weight=e.get_weight())
+        return g
+
+    def compute_advanced(self, g):
+        self._treewidth, _ = treewidth_decomp(g)
+
     @staticmethod
     def _simplify(img):
         _, img = cv.threshold(img, 5, 255, cv.THRESH_BINARY)
         skeleton = skeletonize(img > 0)
-        return np.where(skeleton, 1, 0).astype(uint)
+        thin = np.where(skeleton, 1, 0).astype(uint)
+        return Graph.remove_noise(thin)
 
-# TODO: erase small noise (skimage.morphology.remove_small_objects)
+    @staticmethod
+    def remove_noise(img, thresh=4):
+        nlabels, labels, stats, _ = cv.connectedComponentsWithStats(img, connectivity=8)
+        for id in range(nlabels):
+            if stats[id][cv.CC_STAT_AREA] <= thresh:
+                img = np.where(labels == id, 0, img).astype(uint)
+        return img
