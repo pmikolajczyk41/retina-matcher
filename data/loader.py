@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 import cv2 as cv
 import numpy as np
 from PIL import Image
+from skimage.morphology import skeletonize
 
 from data.augmentor import Augmentor
 from graphify.graph import Graph
@@ -31,6 +32,7 @@ class DataLoader:
         self.sieve_raw_data(EXCL_RNG)
         self.split(TEST_SIZE)
         self.augment()
+        self.postprocess()
         self.convert_to_graph_stats()
 
     def fetch_raw_data(self, rng=DEFAULT_RANGE):
@@ -85,6 +87,21 @@ class DataLoader:
             os.remove(join(pth, img_file))
 
             self._log_progress('Augmenting', (idx + 1) / len(reg_imgs))
+        self._end_logging()
+
+    def postprocess(self):
+        self._postprocess_single_set(f'{READY_DATA_DIR}/imgs/registered', 'registered')
+        self._postprocess_single_set(f'{READY_DATA_DIR}/imgs/unregistered', 'unregistered')
+
+    def _postprocess_single_set(self, pth, dataset):
+        imgs = os.listdir(pth)
+        for idx, img_file in enumerate(imgs):
+            img_pth = join(pth, img_file)
+            img = cv.imread(img_pth, cv.IMREAD_GRAYSCALE)
+            _, img = cv.threshold(img, 5, 255, cv.THRESH_BINARY)
+            skeleton = skeletonize(img > 0)
+            cv.imwrite(img_pth, np.where(skeleton, 255, 0).astype(np.uint8))
+            self._log_progress(f'Postprocessing {dataset} set', (idx + 1) / len(imgs))
         self._end_logging()
 
     def convert_to_graph_stats(self):
